@@ -113,6 +113,8 @@ void chirikov(double& x, double& y, double cx, double cy) {
   y += cy*std::sin(x);
   x += cx*y;
 }
+
+// TODO: Replace tricorn with JuliaLang interpreter
 void tricorn(double& x, double& y, double cx, double cy) {
   double nx = x*x - y*y + cx;
   double ny = -2.0*x*y + cy;
