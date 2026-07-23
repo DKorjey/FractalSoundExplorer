@@ -1,0 +1,14 @@
+{
+	"configurations": [
+		{
+			"name": "Windows",
+			"includePath": [
+				"${workspaceFolder}/**",
+				"C:/Program Files/SFML/include"
+			],
+			"compilerPath": "clang++.exe",
+			"cppStandard": "c++17"
+		}
+	],
+	"version": 4
+}

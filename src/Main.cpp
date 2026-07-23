@@ -3,10 +3,10 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/OpenGL.hpp>
 #include <SFML/Audio.hpp>
+#include <SFML/Window/WindowHandle.hpp>
 #include <iostream>
 #include <complex>
 #include <math.h>
-#include <fstream>
 #include <cstring>
 
 //Constants
@@ -40,7 +40,7 @@ static double jy = 1e8;
 static int frame = 0;
 
 //Fractal abstraction definition
-typedef void (*Fractal)(double&, double&, double, double);
+using Fractal = void (*)(double&, double&, double, double);
 static Fractal fractal = nullptr;
 
 //Blend modes
@@ -51,12 +51,12 @@ const sf::BlendMode BlendIgnoreAlpha(sf::BlendMode::One, sf::BlendMode::Zero, sf
 
 //Screen utilities
 void ScreenToPt(int x, int y, double& px, double& py) {
-  px = double(x - window_w / 2) / cam_zoom - cam_x;
-  py = double(y - window_h / 2) / cam_zoom - cam_y;
+  px = static_cast<double>(x - static_cast<int>(window_w / 2)) / cam_zoom - cam_x;
+  py = static_cast<double>(y - static_cast<int>(window_h / 2)) / cam_zoom - cam_y;
 }
 void PtToScreen(double px, double py, int& x, int& y) {
-  x = int(cam_zoom * (px + cam_x)) + window_w / 2;
-  y = int(cam_zoom * (py + cam_y)) + window_h / 2;
+  x = static_cast<int>(cam_zoom * (px + cam_x)) + window_w / 2;
+  y = static_cast<int>(cam_zoom * (py + cam_y)) + window_h / 2;
 }
 
 //All fractal equations
@@ -113,6 +113,12 @@ void chirikov(double& x, double& y, double cx, double cy) {
   y += cy*std::sin(x);
   x += cx*y;
 }
+void tricorn(double& x, double& y, double cx, double cy) {
+  double nx = x*x - y*y + cx;
+  double ny = -2.0*x*y + cy;
+  x = nx;
+  y = ny;
+}
 
 //List of fractal equations
 static const Fractal all_fractals[] = {
@@ -124,6 +130,7 @@ static const Fractal all_fractals[] = {
   duffing,
   ikeda,
   chirikov,
+  tricorn,
 };
 
 //Synthesizer class to inherit SoundStream.
@@ -138,7 +145,7 @@ public:
   double play_nx, play_ny;
   double play_px, play_py;
 
-  Synth(unsigned long int /*unused*/) {
+  Synth(sf::WindowHandle handle) {
     audio_reset = true;
     audio_pause = false;
     volume = 8000.0;
@@ -309,11 +316,12 @@ void make_window(sf::RenderWindow& window, sf::RenderTexture& rt, const sf::Cont
 }
 
 //Main entry-point
-#if _WIN32
-INT WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR lpCmdLine, INT nCmdShow) {
+#ifdef _WIN32
+int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 #else
-int main(int argc, char *argv[]) {
+int main(void)
 #endif
+{
   //Make sure shader is supported
   if (!sf::Shader::isAvailable()) {
     std::cerr << "Graphics card does not support shaders" << std::endl;
@@ -368,6 +376,7 @@ int main(int argc, char *argv[]) {
   //Setup the shader
   shader.setUniform("iCam", sf::Vector2f((float)cam_x, (float)cam_y));
   shader.setUniform("iZoom", (float)cam_zoom);
+
   SetFractal(shader, starting_fractal, synth);
 
   //Start the synth
@@ -394,7 +403,7 @@ int main(int argc, char *argv[]) {
         if (keycode == sf::Keyboard::Escape) {
           window.close();
           break;
-        } else if (keycode >= sf::Keyboard::Num1 && keycode <= sf::Keyboard::Num8) {
+        } else if (keycode >= sf::Keyboard::Num1 && keycode <= sf::Keyboard::Num9) {
           SetFractal(shader, keycode - sf::Keyboard::Num1, synth);
         } else if (keycode == sf::Keyboard::F11) {
           toggle_fullscreen = true;
@@ -581,10 +590,11 @@ int main(int argc, char *argv[]) {
         "  2 - Burning Ship\n"
         "  3 - Feather Fractal\n"
         "  4 - SFX Fractal\n"
-        "  5 - Hénon Map\n"
+        "  5 - Heanon Map\n"
         "  6 - Duffing Map\n"
         "  7 - Ikeda Map\n"
         "  8 - Chirikov Map\n"
+        "  9 - Tricorn Map\n"
       );
       helpMenu.setPosition(20.0f, 20.0f);
       window.draw(helpMenu);
