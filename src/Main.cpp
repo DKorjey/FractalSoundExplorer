@@ -6,10 +6,11 @@
 #include <SFML/Window/WindowHandle.hpp>
 #include <iostream>
 #include <complex>
+#include <sstream>
 #include <math.h>
 #include <cstring>
 
-//Constants
+// Constants
 static const int target_fps = 60;
 static const int sample_rate = 48000;
 static const int max_freq = 4000;
@@ -20,7 +21,7 @@ static const int max_iters = 1200;
 static const double escape_radius_sq = 1000.0;
 static const char window_name[] = "Fractal Sound Explorer";
 
-//Settings
+// Settings
 static int window_w = window_w_init;
 static int window_h = window_h_init;
 static double cam_x = 0.0;
@@ -39,34 +40,34 @@ static double jx = 1e8;
 static double jy = 1e8;
 static int frame = 0;
 
-//Fractal abstraction definition
+// Fractal abstraction definition
 using Fractal = void (*)(double&, double&, double, double);
 static Fractal fractal = nullptr;
 
-//Blend modes
+// Blend modes
 const sf::BlendMode BlendAlpha(sf::BlendMode::SrcAlpha, sf::BlendMode::OneMinusSrcAlpha, sf::BlendMode::Add,
                                sf::BlendMode::Zero, sf::BlendMode::One, sf::BlendMode::Add);
 const sf::BlendMode BlendIgnoreAlpha(sf::BlendMode::One, sf::BlendMode::Zero, sf::BlendMode::Add,
                                      sf::BlendMode::Zero, sf::BlendMode::One, sf::BlendMode::Add);
 
-//Screen utilities
-void ScreenToPt(int x, int y, double& px, double& py) {
+// Screen utilities
+void s2p(int x, int y, double& px, double& py) {
   px = static_cast<double>(x - static_cast<int>(window_w / 2)) / cam_zoom - cam_x;
   py = static_cast<double>(y - static_cast<int>(window_h / 2)) / cam_zoom - cam_y;
 }
-void PtToScreen(double px, double py, int& x, int& y) {
+void p2s(double px, double py, int& x, int& y) {
   x = static_cast<int>(cam_zoom * (px + cam_x)) + window_w / 2;
   y = static_cast<int>(cam_zoom * (py + cam_y)) + window_h / 2;
 }
 
-//All fractal equations
+// All fractal equations
 void mandelbrot(double& x, double& y, double cx, double cy) {
   double nx = x*x - y*y + cx;
   double ny = 2.0*x*y + cy;
   x = nx;
   y = ny;
 }
-void burning_ship(double& x, double& y, double cx, double cy) {
+void burningShip(double& x, double& y, double cx, double cy) {
   double nx = x*x - y*y + cx;
   double ny = 2.0*std::abs(x*y) + cy;
   x = nx;
@@ -122,10 +123,10 @@ void tricorn(double& x, double& y, double cx, double cy) {
   y = ny;
 }
 
-//List of fractal equations
+// List of fractal equations
 static const Fractal all_fractals[] = {
   mandelbrot,
-  burning_ship,
+  burningShip,
   feather,
   sfx,
   henon,
@@ -135,7 +136,7 @@ static const Fractal all_fractals[] = {
   tricorn,
 };
 
-//Synthesizer class to inherit SoundStream.
+// Synthesizer class to inherit SoundStream.
 class Synth : public sf::SoundStream {
 public:
   static const int AUDIO_BUFF_SIZE = 4096;
@@ -164,7 +165,7 @@ public:
     setLoop(true);
   }
 
-  void SetPoint(double x, double y) {
+  void setPoint(double x, double y) {
     play_nx = x;
     play_ny = y;
     audio_reset = true;
@@ -174,12 +175,12 @@ public:
   virtual void onSeek(sf::Time /*unused*/) override {}
 
   virtual bool onGetData(Chunk& data) override {
-    //Setup the chunk info
+    // Setup the chunk info
     data.samples = m_samples;
     data.sampleCount = AUDIO_BUFF_SIZE;
     memset(m_samples, 0, sizeof(m_samples));
 
-    //Check if audio needs to reset
+    // Check if audio needs to reset
     if (audio_reset) {
       m_audio_time = 0;
       play_cx = (jx < 1e8 ? jx : play_nx);
@@ -194,12 +195,12 @@ public:
       audio_reset = false;
     }
 
-    //Check if paused
+    // Check if paused
     if (audio_pause) {
       return true;
     }
 
-    //Generate the tones
+    // Generate the tones
     const int steps = sample_rate / max_freq;
     for (int i = 0; i < AUDIO_BUFF_SIZE; i+=2) {
       const int j = m_audio_time % steps;
@@ -226,18 +227,18 @@ public:
             dy *= dmag;
           }
         } else {
-          //Point is relative to mean
+          // Point is relative to mean
           dx = play_x - mean_x;
           dy = play_y - mean_y;
           dpx = play_px - mean_x;
           dpy = play_py - mean_y;
         }
 
-        //Update mean
+        // Update mean
         mean_x = mean_x*0.99 + play_x*0.01;
         mean_y = mean_y*0.99 + play_y*0.01;
 
-        //Don't let the volume go to infinity, clamp.
+        // Don't let the volume go to infinity, clamp.
         double m = dx*dx + dy*dy;
         if (m > 2.0) {
           dx *= 2.0 / m;
@@ -249,25 +250,25 @@ public:
           dpy *= 2.0 / m;
         }
 
-        //Lose volume over time unless in sustain mode
+        // Lose volume over time unless in sustain mode
         if (!sustain) {
           volume *= 0.9992;
         }
       }
 
-      //Cosine interpolation
+      // Cosine interpolation
       double t = double(j) / double(steps);
       t = 0.5 - 0.5*std::cos(t * 3.14159);
       double wx = t*dx + (1.0 - t)*dpx;
       double wy = t*dy + (1.0 - t)*dpy;
 
-      //Save the audio to the 2 channels
+      // Save the audio to the 2 channels
       m_samples[i]   = (int16_t)std::min(std::max(wx * volume, -32000.0), 32000.0);
       m_samples[i+1] = (int16_t)std::min(std::max(wy * volume, -32000.0), 32000.0);
       m_audio_time += 1;
     }
 
-    //Return the sound clip
+    // Return the sound clip
     return !audio_reset;
   }
 
@@ -281,8 +282,8 @@ public:
   double dpy;
 };
 
-//Change the fractal
-void SetFractal(sf::Shader& shader, int type, Synth& synth) {
+// Change the fractal
+void setFractal(sf::Shader& shader, int type, Synth& synth) {
   shader.setUniform("iType", type);
   jx = jy = 1e8;
   fractal = all_fractals[type];
@@ -292,15 +293,16 @@ void SetFractal(sf::Shader& shader, int type, Synth& synth) {
   frame = 0;
 }
 
-//Used whenever the window is created or resized
-void resize_window(sf::RenderWindow& window, sf::RenderTexture& rt, const sf::ContextSettings& settings, int w, int h) {
+// Used whenever the window is created or resized
+void resizeWindow(sf::RenderWindow& window, sf::RenderTexture& rt, const sf::ContextSettings& settings, int w, int h) {
   window_w = w;
   window_h = h;
   rt.create(w, h);
   window.setView(sf::View(sf::FloatRect(0, 0, (float)w, (float)h)));
   frame = 0;
 }
-void make_window(sf::RenderWindow& window, sf::RenderTexture& rt, const sf::ContextSettings& settings, bool is_fullscreen) {
+
+void createWindow(sf::RenderWindow& window, sf::RenderTexture& rt, const sf::ContextSettings& settings, bool is_fullscreen) {
   window.close();
   sf::VideoMode screenSize;
   if (is_fullscreen) {
@@ -310,27 +312,27 @@ void make_window(sf::RenderWindow& window, sf::RenderTexture& rt, const sf::Cont
     screenSize = sf::VideoMode(window_w_init, window_h_init, 24);
     window.create(screenSize, window_name, sf::Style::Resize | sf::Style::Close, settings);
   }
-  resize_window(window, rt, settings, screenSize.width, screenSize.height);
+  resizeWindow(window, rt, settings, screenSize.width, screenSize.height);
   window.setFramerateLimit(target_fps);
-  //window.setVerticalSyncEnabled(true);
+  // window.setVerticalSyncEnabled(true);
   window.setKeyRepeatEnabled(false);
   window.requestFocus();
 }
 
-//Main entry-point
+// Main entry-point
 #ifdef _WIN32
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 #else
 int main(void)
 #endif
 {
-  //Make sure shader is supported
+  // Make sure shader is supported
   if (!sf::Shader::isAvailable()) {
     std::cerr << "Graphics card does not support shaders" << std::endl;
     return 1;
   }
 
-  //Load the vertex shader
+  // Load the vertex shader
   sf::Shader shader;
   if (!shader.loadFromFile("vert.glsl", sf::Shader::Vertex)) {
     std::cerr << "Failed to compile vertex shader" << std::endl;
@@ -338,14 +340,14 @@ int main(void)
     return 1;
   }
 
-  //Load the fragment shader
+  // Load the fragment shader
   if (!shader.loadFromFile("frag.glsl", sf::Shader::Fragment)) {
     std::cerr << "Failed to compile fragment shader" << std::endl;
     system("pause");
     return 1;
   }
 
-  //Load the font
+  // Load the font
   sf::Font font;
   if (!font.loadFromFile("RobotoMono-Medium.ttf")) {
     std::cerr << "Failed to load font" << std::endl;
@@ -353,11 +355,11 @@ int main(void)
     return 1;
   }
 
-  //Create the full-screen rectangle to draw the shader
+  // Create the full-screen rectangle to draw the shader
   sf::RectangleShape rect;
   rect.setPosition(0, 0);
 
-  //GL settings
+  // GL settings
   sf::ContextSettings settings;
   settings.depthBits = 24;
   settings.stencilBits = 8;
@@ -365,33 +367,75 @@ int main(void)
   settings.majorVersion = 3;
   settings.minorVersion = 0;
 
-  //Create the window
+  // Create the window
   sf::RenderWindow window;
   sf::RenderTexture renderTexture;
   bool is_fullscreen = false;
   bool toggle_fullscreen = false;
-  make_window(window, renderTexture, settings, is_fullscreen);
+  createWindow(window, renderTexture, settings, is_fullscreen);
 
-  //Create audio synth
+  // Dim
+  sf::RectangleShape dimRect(sf::Vector2f((float)window_w, (float)window_h));
+  dimRect.setFillColor(sf::Color(0,0,0,128));
+
+  // Help menu
+  sf::Text helpMenu;
+  helpMenu.setFont(font);
+  helpMenu.setCharacterSize(24);
+  helpMenu.setFillColor(sf::Color::White);
+  helpMenu.setString(
+    "  H - Toggle Help Menu                Left Mouse - Click or drag to hear orbits\n"
+    "  D - Toggle Audio Dampening        Middle Mouse - Drag to pan view\n"
+    "  C - Toggle Color                   Right Mouse - Stop orbit and sound\n"
+    "F11 - Toggle Fullscreen             Scroll Wheel - Zoom in and out\n"
+    "  S - Save Snapshot\n"
+    "  R - Reset View\n"
+    "  J - Hold down, move mouse, and\n"
+    "      release to make Julia sets.\n"
+    "      Press again to switch back.\n"
+    "  1 - Mandelbrot Set\n"
+    "  2 - Burning Ship\n"
+    "  3 - Feather Fractal\n"
+    "  4 - SFX Fractal\n"
+    "  5 - Heanon Map\n"
+    "  6 - Duffing Map\n"
+    "  7 - Ikeda Map\n"
+    "  8 - Chirikov Map\n"
+    "  9 - Tricorn Map\n"
+  );
+  helpMenu.setPosition(20.0f, 20.0f);
+
+  // Plot
+  sf::Text plotMenu;
+  plotMenu.setFont(font);
+  helpMenu.setCharacterSize(24);
+  helpMenu.setFillColor(sf::Color::White);
+  std::ostringstream plotMenuOss;
+
+  // Create audio synth
   Synth synth;
 
-  //Setup the shader
+  // Setup the shader
   shader.setUniform("iCam", sf::Vector2f((float)cam_x, (float)cam_y));
   shader.setUniform("iZoom", (float)cam_zoom);
 
-  SetFractal(shader, starting_fractal, synth);
+  setFractal(shader, starting_fractal, synth);
 
-  //Start the synth
+
+
+  // Start the synth
   synth.play();
 
-  //Main Loop
+  // Main Loop
   double px, py, orbit_x, orbit_y;
   bool leftPressed = false;
   bool dragging = false;
   bool juliaDrag = false;
   bool takeScreenshot = false;
   bool showHelpMenu = false;
+  bool plotCursor = false;
   sf::Vector2i prevDrag;
+
   while (window.isOpen()) {
     sf::Event event;
     while (window.pollEvent(event)) {
@@ -399,14 +443,14 @@ int main(void)
         window.close();
         break;
       } else if (event.type == sf::Event::Resized) {
-        resize_window(window, renderTexture, settings, event.size.width, event.size.height);
+        resizeWindow(window, renderTexture, settings, event.size.width, event.size.height);
       } else if (event.type == sf::Event::KeyPressed) {
         const sf::Keyboard::Key keycode = event.key.code;
         if (keycode == sf::Keyboard::Escape) {
           window.close();
           break;
         } else if (keycode >= sf::Keyboard::Num1 && keycode <= sf::Keyboard::Num9) {
-          SetFractal(shader, keycode - sf::Keyboard::Num1, synth);
+          setFractal(shader, keycode - sf::Keyboard::Num1, synth);
         } else if (keycode == sf::Keyboard::F11) {
           toggle_fullscreen = true;
         } else if (keycode == sf::Keyboard::D) {
@@ -425,7 +469,7 @@ int main(void)
           } else {
             juliaDrag = true;
             const sf::Vector2i mousePos = sf::Mouse::getPosition(window);
-            ScreenToPt(mousePos.x, mousePos.y, jx, jy);
+            s2p(mousePos.x, mousePos.y, jx, jy);
           }
           synth.audio_pause = true;
           hide_orbit = true;
@@ -434,6 +478,8 @@ int main(void)
           takeScreenshot = true;
         } else if (keycode == sf::Keyboard::H) {
           showHelpMenu = !showHelpMenu;
+        } else if (keycode == sf::Keyboard::P) {
+          plotCursor = !plotCursor;
         }
       } else if (event.type == sf::Event::KeyReleased) {
         if (event.key.code == sf::Keyboard::J) {
@@ -449,8 +495,8 @@ int main(void)
         if (event.mouseButton.button == sf::Mouse::Left) {
           leftPressed = true;
           hide_orbit = false;
-          ScreenToPt(event.mouseButton.x, event.mouseButton.y, px, py);
-          synth.SetPoint(px, py);
+          s2p(event.mouseButton.x, event.mouseButton.y, px, py);
+          synth.setPoint(px, py);
           orbit_x = px;
           orbit_y = py;
         } else if (event.mouseButton.button == sf::Mouse::Middle) {
@@ -468,8 +514,8 @@ int main(void)
         }
       } else if (event.type == sf::Event::MouseMoved) {
         if (leftPressed) {
-          ScreenToPt(event.mouseMove.x, event.mouseMove.y, px, py);
-          synth.SetPoint(px, py);
+          s2p(event.mouseMove.x, event.mouseMove.y, px, py);
+          synth.setPoint(px, py);
           orbit_x = px;
           orbit_y = py;
         }
@@ -481,17 +527,17 @@ int main(void)
           frame = 0;
         }
         if (juliaDrag) {
-          ScreenToPt(event.mouseMove.x, event.mouseMove.y, jx, jy);
+          s2p(event.mouseMove.x, event.mouseMove.y, jx, jy);
           frame = 0;
         }
       }
     }
 
-    //Apply zoom
+    // Apply zoom
     double fpx, fpy, delta_cam_x, delta_cam_y;
-    ScreenToPt(cam_x_fp, cam_y_fp, fpx, fpy);
+    s2p(cam_x_fp, cam_y_fp, fpx, fpy);
     cam_zoom = cam_zoom*0.8 + cam_zoom_dest*0.2;
-    ScreenToPt(cam_x_fp, cam_y_fp, delta_cam_x, delta_cam_y);
+    s2p(cam_x_fp, cam_y_fp, delta_cam_x, delta_cam_y);
     cam_x_dest += delta_cam_x - fpx;
     cam_y_dest += delta_cam_y - fpy;
     cam_x += delta_cam_x - fpx;
@@ -499,13 +545,13 @@ int main(void)
     cam_x = cam_x*0.8 + cam_x_dest*0.2;
     cam_y = cam_y*0.8 + cam_y_dest*0.2;
 
-    //Create drawing flags for the shader
+    // Create drawing flags for the shader
     const bool hasJulia = (jx < 1e8);
     const bool drawMset = (juliaDrag || !hasJulia);
     const bool drawJset = (juliaDrag || hasJulia);
     const int flags = (drawMset ? 0x01 : 0) | (drawJset ? 0x02 : 0) | (use_color ? 0x04 : 0);
 
-    //Set the shader parameters
+    // Set the shader parameters
     const sf::Glsl::Vec2 window_res((float)window_w, (float)window_h);
     shader.setUniform("iResolution", window_res);
     shader.setUniform("iCam", sf::Vector2f((float)cam_x, (float)cam_y));
@@ -515,7 +561,7 @@ int main(void)
     shader.setUniform("iIters", max_iters);
     shader.setUniform("iTime", frame);
 
-    //Draw the full-screen shader to the render texture
+    // Draw the full-screen shader to the render texture
     sf::RenderStates states = sf::RenderStates::Default;
     states.blendMode = (frame > 0 ? BlendAlpha : BlendIgnoreAlpha);
     states.shader = &shader;
@@ -523,12 +569,12 @@ int main(void)
     renderTexture.draw(rect, states);
     renderTexture.display();
 
-    //Draw the render texture to the window
+    // Draw the render texture to the window
     sf::Sprite sprite(renderTexture.getTexture());
     window.clear();
     window.draw(sprite, sf::RenderStates(BlendIgnoreAlpha));
 
-    //Save screen shot if needed
+    // Save screen shot if needed
     if (takeScreenshot) {
       window.display();
       const time_t t = std::time(0);
@@ -543,7 +589,7 @@ int main(void)
       takeScreenshot = false;
     }
 
-    //Draw the orbit
+    // Draw the orbit
     if (!hide_orbit) {
       glLineWidth(1.0f);
       glColor3f(1.0f, 0.0f, 0.0f);
@@ -551,13 +597,13 @@ int main(void)
       int sx, sy;
       double x = orbit_x;
       double y = orbit_y;
-      PtToScreen(x, y, sx, sy);
+      p2s(x, y, sx, sy);
       glVertex2i(sx, sy);
       double cx = (hasJulia ? jx : px);
       double cy = (hasJulia ? jy : py);
       for (int i = 0; i < 200; ++i) {
         fractal(x, y, cx, cy);
-        PtToScreen(x, y, sx, sy);
+        p2s(x, y, sx, sy);
         glVertex2i(sx, sy);
         if (x*x + y*y > escape_radius_sq) {
           break;
@@ -567,63 +613,44 @@ int main(void)
         }
       }
       glEnd();
+
+      if (plotCursor) {
+        plotMenuOss.str({});
+        plotMenuOss.clear();
+        plotMenuOss << "X: " << px << "\nY: " << py;
+        plotMenu.setString(plotMenuOss.str());
+        window.draw(plotMenu);
+      }
     }
 
-    //Draw help menu
+
+    // Draw help menu
     if (showHelpMenu) {
-      sf::RectangleShape dimRect(sf::Vector2f((float)window_w, (float)window_h));
-      dimRect.setFillColor(sf::Color(0,0,0,128));
       window.draw(dimRect, sf::RenderStates(BlendAlpha));
-      sf::Text helpMenu;
-      helpMenu.setFont(font);
-      helpMenu.setCharacterSize(24);
-      helpMenu.setFillColor(sf::Color::White);
-      helpMenu.setString(
-        "  H - Toggle Help Menu                Left Mouse - Click or drag to hear orbits\n"
-        "  D - Toggle Audio Dampening        Middle Mouse - Drag to pan view\n"
-        "  C - Toggle Color                   Right Mouse - Stop orbit and sound\n"
-        "F11 - Toggle Fullscreen             Scroll Wheel - Zoom in and out\n"
-        "  S - Save Snapshot\n"
-        "  R - Reset View\n"
-        "  J - Hold down, move mouse, and\n"
-        "      release to make Julia sets.\n"
-        "      Press again to switch back.\n"
-        "  1 - Mandelbrot Set\n"
-        "  2 - Burning Ship\n"
-        "  3 - Feather Fractal\n"
-        "  4 - SFX Fractal\n"
-        "  5 - Heanon Map\n"
-        "  6 - Duffing Map\n"
-        "  7 - Ikeda Map\n"
-        "  8 - Chirikov Map\n"
-        "  9 - Tricorn Map\n"
-      );
-      helpMenu.setPosition(20.0f, 20.0f);
       window.draw(helpMenu);
     }
 
-    //Flip the screen buffer
+    // Flip the screen buffer
     window.display();
 
-    //Update shader time if frame blending is needed
+    // Update shader time if frame blending is needed
     const double xSpeed = std::abs(cam_x - cam_x_dest) * cam_zoom_dest;
     const double ySpeed = std::abs(cam_x - cam_x_dest) * cam_zoom_dest;
     const double zoomSpeed = std::abs(cam_zoom / cam_zoom_dest - 1.0);
-    if (xSpeed < 0.2 && ySpeed < 0.2 && zoomSpeed < 0.002) {
-      frame += 1;
-    } else {
+    if (xSpeed < 0.2 && ySpeed < 0.2 && zoomSpeed < 0.002)
+      frame++;
+    else
       frame = 1;
-    }
 
-    //Toggle full-screen if needed
+    // Toggle full-screen if needed
     if (toggle_fullscreen) {
       toggle_fullscreen = false;
       is_fullscreen = !is_fullscreen;
-      make_window(window, renderTexture, settings, is_fullscreen);
+      createWindow(window, renderTexture, settings, is_fullscreen);
     }
   }
 
-  //Stop the synth before quitting
+  // Stop the synth before quitting
   synth.stop();
   return 0;
 }
