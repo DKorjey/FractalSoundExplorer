@@ -145,7 +145,7 @@ public:
   double play_nx, play_ny;
   double play_px, play_py;
 
-  Synth(sf::WindowHandle handle) {
+  Synth() {
     audio_reset = true;
     audio_pause = false;
     volume = 8000.0;
@@ -371,7 +371,7 @@ int main(void)
   make_window(window, renderTexture, settings, is_fullscreen);
 
   //Create audio synth
-  Synth synth(window.getSystemHandle());
+  Synth synth;
 
   //Setup the shader
   shader.setUniform("iCam", sf::Vector2f((float)cam_x, (float)cam_y));
