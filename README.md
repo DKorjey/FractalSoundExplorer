@@ -35,6 +35,27 @@ The fractals are designed to run in real time on a GPU. If the program is going 
 - 6 - Duffing Map
 - 7 - Ikeda Map
 - 8 - Chirikov Map
+- 9 - Tricorn Map
+
+## Building
+
+### Windows/Linux (and maybe macos)
+
+Just run in the project directory
+
+For linux or powershell:
+
+```bash
+./compile.bat
+```
+
+For windows command prompt
+
+```bat
+.\compile.bat
+```
+
+Ignore that in linux is bat. Technically it's a polyglot file, just runs cmake
 
 ## Thanks
 
