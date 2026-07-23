@@ -390,6 +390,7 @@ int main(void)
     "F11 - Toggle Fullscreen             Scroll Wheel - Zoom in and out\n"
     "  S - Save Snapshot\n"
     "  R - Reset View\n"
+    "  P - Plot current coordinates\n"
     "  J - Hold down, move mouse, and\n"
     "      release to make Julia sets.\n"
     "      Press again to switch back.\n"

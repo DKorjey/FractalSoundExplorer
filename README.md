@@ -26,6 +26,7 @@ The fractals are designed to run in real time on a GPU. If the program is going 
 - F11 - Toggle Fullscreen
 - S - Save Snapshot
 - R - Reset View
+- P - Plot current coordinates
 - J - Hold down, move mouse, and release to make Julia sets. Press again to switch back.
 - 1 - Mandelbrot Set
 - 2 - Burning Ship
